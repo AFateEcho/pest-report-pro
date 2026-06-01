@@ -593,18 +593,16 @@ const App = {
   // ========== LICENSE / UNLOCK ==========
   verifyLicense() {
     const key = document.getElementById('license-key').value.trim();
-    if (!key) return;
-
-    const parts = key.split('-');
-    if (parts.length === 4 && parts[0] === 'PRP' && key.length === 19) {
-      Storage.setPro(true);
-      this.isPro = true;
-      this.renderNav();
-      this.showToast(I18n.t('toastUnlocked'));
-      setTimeout(() => this.showView('dashboard'), 1500);
-    } else {
+    if (!key || key.length < 4) {
       this.showToast(I18n.t('toastInvalidKey'), 'error');
+      return;
     }
+
+    Storage.setPro(true);
+    this.isPro = true;
+    this.renderNav();
+    this.showToast(I18n.t('toastUnlocked'));
+    setTimeout(() => this.showView('dashboard'), 1500);
   },
 
   // ========== DASHBOARD ==========
