@@ -669,11 +669,24 @@ const App = {
       MX: I18n.t('phoneHintMX'),
       OTHER: I18n.t('phoneHintOther')
     };
+    const placeholders = {
+      US: '(555) 123-4567',
+      CN: '(+86) 138 0013 8000',
+      MX: '5512345678',
+      OTHER: '+12345678900'
+    };
     const text = hints[country] || hints.US;
+    const placeholder = placeholders[country] || placeholders.US;
+
     const el1 = document.getElementById('phone-hint-settings');
     const el2 = document.getElementById('phone-hint-service');
     if (el1) el1.textContent = text;
     if (el2) el2.textContent = text;
+
+    const phone1 = document.getElementById('company-phone');
+    const phone2 = document.getElementById('sr-client-phone');
+    if (phone1) phone1.placeholder = placeholder;
+    if (phone2) phone2.placeholder = placeholder;
   },
 
   setupPhoneInputs() {
