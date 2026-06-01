@@ -12,11 +12,24 @@ const App = {
     this.loadCompanySettings();
     this.showView('dashboard');
     this.checkInstallPrompt();
+    this.initAnimations();
 
     // Register service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./service-worker.js').catch(() => {});
     }
+  },
+
+  initAnimations() {
+    // Add press feedback to all buttons
+    document.querySelectorAll('button, .nav-item, .btn-generate, .btn-primary, .btn-secondary').forEach(el => {
+      el.classList.add('btn-feedback');
+    });
+
+    // Add hover lift to cards
+    document.querySelectorAll('.card').forEach(el => {
+      el.classList.add('card-hover');
+    });
   },
 
   bindEvents() {
@@ -37,7 +50,10 @@ const App = {
 
     // Mobile menu toggle
     document.getElementById('menu-toggle')?.addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('open');
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      const isOpen = sidebar.classList.toggle('open');
+      overlay.classList.toggle('hidden', !isOpen);
     });
 
     // Company settings form
@@ -121,13 +137,18 @@ const App = {
       el.style.display = '';
     });
     const target = document.getElementById(`view-${view}`);
-    if (target) target.classList.remove('hidden');
+    if (target) {
+      target.classList.remove('hidden');
+      target.classList.add('view-enter');
+      setTimeout(() => target.classList.remove('view-enter'), 260);
+    }
 
     document.querySelectorAll('.nav-item').forEach(el => {
       el.classList.toggle('active', el.dataset.view === view);
     });
 
     document.getElementById('sidebar')?.classList.remove('open');
+    document.getElementById('sidebar-overlay')?.classList.add('hidden');
     window.scrollTo(0, 0);
     const main = document.querySelector('main');
     if (main) main.scrollTop = 0;
@@ -227,22 +248,28 @@ const App = {
 
   initSignaturePad() {
     const canvas = document.getElementById('signature-canvas');
-    if (!canvas) return;
+    if (!canvas || canvas._signaturePadInitialized) return;
+    canvas._signaturePadInitialized = true;
+
     this.signaturePad = new SignaturePad(canvas, {
       backgroundColor: 'rgb(250,250,250)',
       penColor: 'rgb(30, 64, 175)'
     });
+
     // Load existing signature
     const company = Storage.getCompany();
     if (company.signature) {
       this.signaturePad.fromDataURL(company.signature);
     }
-    // Resize handler
+
+    // Resize handler - restore signature after resize
     const resize = () => {
+      const saved = !this.signaturePad.isEmpty() ? this.signaturePad.toDataURL('image/png') : company.signature;
       const ratio = Math.max(window.devicePixelRatio || 1, 1);
       canvas.width = canvas.offsetWidth * ratio;
       canvas.height = canvas.offsetHeight * ratio;
       canvas.getContext('2d').scale(ratio, ratio);
+      if (saved) this.signaturePad.fromDataURL(saved);
     };
     resize();
     window.addEventListener('resize', resize);
@@ -250,16 +277,21 @@ const App = {
 
   initClientSignaturePad() {
     const canvas = document.getElementById('client-signature-canvas');
-    if (!canvas) return;
+    if (!canvas || canvas._signaturePadInitialized) return;
+    canvas._signaturePadInitialized = true;
+
     this.clientSignaturePad = new SignaturePad(canvas, {
       backgroundColor: 'rgb(250,250,250)',
       penColor: 'rgb(30, 64, 175)'
     });
+
     const resize = () => {
+      const saved = !this.clientSignaturePad.isEmpty() ? this.clientSignaturePad.toDataURL('image/png') : null;
       const ratio = Math.max(window.devicePixelRatio || 1, 1);
       canvas.width = canvas.offsetWidth * ratio;
       canvas.height = canvas.offsetHeight * ratio;
       canvas.getContext('2d').scale(ratio, ratio);
+      if (saved) this.clientSignaturePad.fromDataURL(saved);
     };
     resize();
     window.addEventListener('resize', resize);
@@ -769,7 +801,17 @@ class SignaturePad {
 
   fromDataURL(dataUrl) {
     const img = new Image();
-    img.onload = () => this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
+    img.onload = () => {
+      // Use CSS dimensions (logical pixels) because ctx is already scaled by devicePixelRatio
+      const cw = this.canvas.offsetWidth;
+      const ch = this.canvas.offsetHeight;
+      const scale = Math.min(cw / img.width, ch / img.height, 1);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      const x = (cw - w) / 2;
+      const y = (ch - h) / 2;
+      this.ctx.drawImage(img, x, y, w, h);
+    };
     img.src = dataUrl;
   }
 }
