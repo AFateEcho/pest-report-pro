@@ -1,0 +1,24 @@
+**Pest Report Pro** is a mobile web app that lets pest control technicians generate professional PDF reports directly on their phone — no laptop, no subscription, no internet required.
+
+**What you get:**
+- ✅ Service Report (FREE) — Document pest findings, treatment methods, chemicals used, safety precautions, and collect client signatures
+- ✅ Quote Generator (Pro) — Create itemized professional quotes with your company branding
+- ✅ Chemical Log Export (Pro) — Compile all chemical application records into compliance-ready PDFs
+- ✅ Your company logo & technician signature automatically added to every PDF
+- ✅ Works completely offline once installed to your home screen
+
+**Perfect for:**
+Solo technicians and small pest control businesses who need to create professional reports in the field without expensive software.
+
+**After purchase:**
+Your license key will be emailed to you. Enter it in the app to unlock all Pro features instantly.
+
+**Access the app:**
+https://jar0401.github.io/pest-report-pro/
+
+**Install on your phone:**
+- iPhone: Open in Safari → Share → "Add to Home Screen"
+- Android: Open in Chrome → Menu → "Add to Home Screen"
+
+**Need help?**
+Email: kikogmgail@gmail.com
