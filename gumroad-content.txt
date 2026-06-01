@@ -1,24 +1,25 @@
-**Pest Report Pro** is a mobile web app that lets pest control technicians generate professional PDF reports directly on their phone — no laptop, no subscription, no internet required.
+Tired of writing pest control reports by hand or lugging a laptop into crawl spaces?
 
-**What you get:**
-- ✅ Service Report (FREE) — Document pest findings, treatment methods, chemicals used, safety precautions, and collect client signatures
-- ✅ Quote Generator (Pro) — Create itemized professional quotes with your company branding
-- ✅ Chemical Log Export (Pro) — Compile all chemical application records into compliance-ready PDFs
-- ✅ Your company logo & technician signature automatically added to every PDF
-- ✅ Works completely offline once installed to your home screen
+Pest Report Pro lets you generate professional PDF reports directly on your phone — in the field, offline, in seconds.
 
-**Perfect for:**
-Solo technicians and small pest control businesses who need to create professional reports in the field without expensive software.
+**What you can do:**
+- **Service Report** — Document pest findings, treatment methods, chemicals applied, safety precautions, and collect client signatures
+- **Quote Generator** — Create itemized quotes with your company logo and branding
+- **Chemical Log Export** — Compile compliance-ready chemical records for state inspections
+- **Company Branding** — Your logo and technician signature automatically appear on every PDF
 
-**After purchase:**
-Your license key will be emailed to you. Enter it in the app to unlock all Pro features instantly.
+**Why technicians love it:**
+- Works offline once installed (PWA)
+- No monthly fees — $19 one-time payment
+- No app store download needed
+- Set up in 2 minutes, use forever
 
-**Access the app:**
-https://jar0401.github.io/pest-report-pro/
+**Who it's for:**
+Solo technicians and small pest control businesses who need professional reports without expensive software.
 
-**Install on your phone:**
-- iPhone: Open in Safari → Share → "Add to Home Screen"
-- Android: Open in Chrome → Menu → "Add to Home Screen"
+**How to use:**
+Open the app in your phone browser, add your company info in Settings, and start generating reports immediately. Enter your license key to unlock Pro features.
 
-**Need help?**
-Email: kikogmgail@gmail.com
+**Access:** https://jar0401.github.io/pest-report-pro/
+
+Questions? kikogmgail@gmail.com

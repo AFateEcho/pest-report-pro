@@ -11,7 +11,7 @@ const { chromium } = require('playwright');
   // Navigate to Service Report
   await page.click('text=Service Report');
   await page.waitForTimeout(1000);
-  await page.screenshot({ path: 'E:/Desktop/claude/pest-report-pro/service-report-ui.png', fullPage: true });
+  await page.screenshot({ path: 'E:/Desktop/claude/pest-report-pro/images/service-report-ui.png', fullPage: true });
   await browser.close();
   console.log('Screenshot saved to service-report-ui.png');
 })();
