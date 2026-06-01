@@ -612,7 +612,13 @@ const App = {
     document.getElementById('dash-report-count').textContent = reports.length;
     document.getElementById('dash-quote-count').textContent = quotes.length;
 
-    const recentReports = reports.slice(0, 5);
+    // 只显示最近15天的报告
+    const today = new Date();
+    const fifteenDaysAgo = new Date();
+    fifteenDaysAgo.setDate(today.getDate() - 15);
+    const recentReports = reports
+      .filter(r => new Date(r.date) >= fifteenDaysAgo)
+      .slice(0, 5);
     const list = document.getElementById('dash-recent-reports');
     if (recentReports.length === 0) {
       list.innerHTML = `<p class="text-gray-400 text-sm italic" data-i18n="noReportsYet">${I18n.t('noReportsYet')}</p>`;
