@@ -707,7 +707,7 @@ const App = {
       if (valid) input.value = `(${raw.slice(0, 3)}) ${raw.slice(3, 6)}-${raw.slice(6)}`;
     } else if (country === 'CN') {
       valid = raw.length === 11 && raw.startsWith('1');
-      if (valid) input.value = `${raw.slice(0, 3)} ${raw.slice(3, 7)} ${raw.slice(7)}`;
+      if (valid) input.value = `(+86) ${raw.slice(0, 3)} ${raw.slice(3, 7)} ${raw.slice(7)}`;
     } else if (country === 'MX') {
       valid = raw.length === 10;
       if (valid) input.value = `${raw.slice(0, 3)} ${raw.slice(3, 6)} ${raw.slice(6)}`;
