@@ -261,6 +261,17 @@ const App = {
     reader.readAsDataURL(file);
   },
 
+  _cleanupSignatureListeners() {
+    if (this._signatureResizeHandler) {
+      window.removeEventListener('resize', this._signatureResizeHandler);
+      this._signatureResizeHandler = null;
+    }
+    if (this._clientSignatureResizeHandler) {
+      window.removeEventListener('resize', this._clientSignatureResizeHandler);
+      this._clientSignatureResizeHandler = null;
+    }
+  },
+
   initSignaturePad() {
     const canvas = document.getElementById('signature-canvas');
     if (!canvas || canvas._signaturePadInitialized) return;
@@ -288,6 +299,7 @@ const App = {
     };
     resize();
     window.addEventListener('resize', resize);
+    this._signatureResizeHandler = resize;
   },
 
   initClientSignaturePad() {
@@ -310,6 +322,7 @@ const App = {
     };
     resize();
     window.addEventListener('resize', resize);
+    this._clientSignatureResizeHandler = resize;
   },
 
   // ========== SERVICE REPORT ==========
@@ -664,7 +677,6 @@ const App = {
   // ========== HISTORY ==========
   renderHistory() {
     const reports = Storage.getReports();
-    this._allReports = reports; // cache for filtering
     const list = document.getElementById('history-list');
     const searchInput = document.getElementById('history-search');
     if (searchInput) searchInput.value = '';
@@ -690,7 +702,7 @@ const App = {
       <div class="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-history-index="${idx}" data-report-id="${r.id || ''}">
         <div class="min-w-0">
           <p class="text-sm font-bold text-gray-900 truncate">${r.clientName || '—'}</p>
-          <p class="text-xs text-gray-500 mt-0.5">${r.date || '—'} • ${this.translateServiceTypeForHistory(r.serviceType)}</p>
+          <p class="text-xs text-gray-500 mt-0.5">${r.date || '—'} • ${PDF.translateServiceType(r.serviceType)}</p>
           ${r.clientAddress ? `<p class="text-xs text-gray-400 mt-0.5 truncate">${r.clientAddress}</p>` : ''}
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -706,20 +718,9 @@ const App = {
     `).join('');
   },
 
-  translateServiceTypeForHistory(type) {
-    const map = {
-      'Initial Treatment': I18n.t('initialTreatment'),
-      'Follow-up': I18n.t('followUp'),
-      'Inspection': I18n.t('inspection'),
-      'Emergency': I18n.t('emergency'),
-      'Quarterly Service': I18n.t('quarterlyService')
-    };
-    return map[type] || type || '—';
-  },
-
   filterHistory() {
     const query = document.getElementById('history-search')?.value.trim().toLowerCase() || '';
-    const reports = this._allReports || Storage.getReports();
+    const reports = Storage.getReports();
     if (!query) {
       this._renderHistoryList(reports);
       return;
