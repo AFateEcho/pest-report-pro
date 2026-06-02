@@ -168,6 +168,7 @@ const App = {
     if (main) main.scrollTop = 0;
 
     if (view === 'dashboard') this.renderDashboard();
+    if (view === 'history') this.renderHistory();
     if (view === 'service-report') {
       this.resetServiceForm();
       setTimeout(() => this.initClientSignaturePad(), 50);
@@ -660,6 +661,94 @@ const App = {
     }
   },
 
+  // ========== HISTORY ==========
+  renderHistory() {
+    const reports = Storage.getReports();
+    this._allReports = reports; // cache for filtering
+    const list = document.getElementById('history-list');
+    const searchInput = document.getElementById('history-search');
+    if (searchInput) searchInput.value = '';
+
+    if (reports.length === 0) {
+      list.innerHTML = `
+        <div class="card text-center py-10">
+          <i class="fas fa-folder-open text-gray-300 text-4xl mb-3"></i>
+          <p class="text-gray-400 text-sm" data-i18n="historyEmpty">${I18n.t('historyEmpty')}</p>
+        </div>
+      `;
+      return;
+    }
+
+    this._renderHistoryList(reports);
+  },
+
+  _renderHistoryList(reports) {
+    const list = document.getElementById('history-list');
+    const sorted = [...reports].sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+
+    list.innerHTML = sorted.map((r, idx) => `
+      <div class="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-history-index="${idx}" data-report-id="${r.id || ''}">
+        <div class="min-w-0">
+          <p class="text-sm font-bold text-gray-900 truncate">${r.clientName || '—'}</p>
+          <p class="text-xs text-gray-500 mt-0.5">${r.date || '—'} • ${this.translateServiceTypeForHistory(r.serviceType)}</p>
+          ${r.clientAddress ? `<p class="text-xs text-gray-400 mt-0.5 truncate">${r.clientAddress}</p>` : ''}
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button onclick="App.downloadReport('${r.id || ''}')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+            <i class="fas fa-download text-xs"></i>
+            <span data-i18n="historyDownload">${I18n.t('historyDownload')}</span>
+          </button>
+          <button onclick="App.deleteReport('${r.id || ''}')" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium px-3 py-1.5 rounded-lg transition">
+            <i class="fas fa-trash-alt text-xs"></i>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  },
+
+  translateServiceTypeForHistory(type) {
+    const map = {
+      'Initial Treatment': I18n.t('initialTreatment'),
+      'Follow-up': I18n.t('followUp'),
+      'Inspection': I18n.t('inspection'),
+      'Emergency': I18n.t('emergency'),
+      'Quarterly Service': I18n.t('quarterlyService')
+    };
+    return map[type] || type || '—';
+  },
+
+  filterHistory() {
+    const query = document.getElementById('history-search')?.value.trim().toLowerCase() || '';
+    const reports = this._allReports || Storage.getReports();
+    if (!query) {
+      this._renderHistoryList(reports);
+      return;
+    }
+    const filtered = reports.filter(r =>
+      (r.clientName || '').toLowerCase().includes(query) ||
+      (r.clientAddress || '').toLowerCase().includes(query) ||
+      (r.date || '').includes(query)
+    );
+    this._renderHistoryList(filtered);
+  },
+
+  downloadReport(id) {
+    const reports = Storage.getReports();
+    const report = reports.find(r => r.id === id);
+    if (!report) {
+      this.showToast(I18n.t('toastInvalidKey'), 'error');
+      return;
+    }
+    PDF.generateServiceReport(report, this.isPro);
+    this.showToast(I18n.t('toastServiceGenerated'));
+  },
+
+  deleteReport(id) {
+    if (!confirm(I18n.t('historyDeleteConfirm'))) return;
+    Storage.deleteReport(id);
+    this.renderHistory();
+    this.showToast(I18n.t('toastReportDeleted'));
+  },
 
   // ========== PWA INSTALL ==========
   deferredPrompt: null,

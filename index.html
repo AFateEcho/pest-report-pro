@@ -51,6 +51,10 @@
           <i class="fas fa-home w-5 text-center"></i>
           <span data-i18n="navDashboard">Dashboard</span>
         </div>
+        <div class="nav-item" data-view="history">
+          <i class="fas fa-clock-rotate-left w-5 text-center"></i>
+          <span data-i18n="navHistory">History</span>
+        </div>
         <div class="nav-item" data-view="service-report">
           <i class="fas fa-file-medical w-5 text-center"></i>
           <span data-i18n="navServiceReport">Service Report</span>
@@ -91,7 +95,7 @@
         <div class="bg-gray-50 rounded-lg p-3 text-center">
           <p class="text-xs text-gray-500 mb-2" data-i18n="freeVersion">Free version</p>
           <button onclick="App.showUnlock()" class="w-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 rounded-lg transition flex items-center justify-center gap-1">
-            <i class="fas fa-crown mr-1"></i> <span data-i18n="unlockPro">Unlock Pro - $19</span>
+            <i class="fas fa-crown mr-1"></i> <span data-i18n="unlockPro">Unlock Pro - $0.99</span>
           </button>
         </div>
       </div>
@@ -170,6 +174,28 @@
                 <span data-i18n="tipInstall">Install as an app on your phone for offline access in the field.</span>
               </li>
             </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW: History -->
+      <div id="view-history" class="view hidden p-5 lg:p-10 max-w-5xl mx-auto">
+        <div class="mb-8">
+          <h2 class="text-2xl font-bold text-gray-900 tracking-tight" data-i18n="historyTitle">History</h2>
+          <p class="text-gray-500 text-sm mt-1" data-i18n="historySubtitle">View and manage all your past reports.</p>
+        </div>
+
+        <div class="mb-5">
+          <div class="relative">
+            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+            <input type="text" id="history-search" data-i18n-placeholder="historySearchPlaceholder" placeholder="Search by client name..." class="input-field pl-9 w-full" oninput="App.filterHistory()">
+          </div>
+        </div>
+
+        <div id="history-list" class="space-y-3">
+          <div class="card text-center py-10">
+            <i class="fas fa-folder-open text-gray-300 text-4xl mb-3"></i>
+            <p class="text-gray-400 text-sm" data-i18n="historyEmpty">No reports yet. Create your first service report!</p>
           </div>
         </div>
       </div>
@@ -597,7 +623,7 @@
 
         <div class="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center mb-6">
           <p class="text-sm text-blue-700 font-medium mb-1" data-i18n="oneTimePayment">One-time payment</p>
-          <p class="text-4xl font-bold text-blue-800">$19</p>
+          <p class="text-4xl font-bold text-blue-800">$0.99</p>
           <p class="text-xs text-blue-600 mt-1" data-i18n="noFees">No monthly fees. No hidden costs.</p>
         </div>
 
