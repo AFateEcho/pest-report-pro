@@ -5,7 +5,8 @@ const Storage = {
     reports: 'prp_reports',
     quotes: 'prp_quotes',
     chemicals: 'prp_chemicals',
-    lang: 'prp_lang'
+    lang: 'prp_lang',
+    usedKeys: 'prp_used_keys'
   },
 
   getCompany() {
@@ -110,6 +111,27 @@ const Storage = {
 
   setLang(lang) {
     localStorage.setItem(this.key.lang, lang);
+  },
+
+  getUsedKeys() {
+    try {
+      return JSON.parse(localStorage.getItem(this.key.usedKeys)) || [];
+    } catch {
+      return [];
+    }
+  },
+
+  addUsedKey(key) {
+    const keys = this.getUsedKeys();
+    const normalized = key.trim().toUpperCase();
+    if (!keys.includes(normalized)) {
+      keys.push(normalized);
+      localStorage.setItem(this.key.usedKeys, JSON.stringify(keys));
+    }
+  },
+
+  isKeyUsed(key) {
+    return this.getUsedKeys().includes(key.trim().toUpperCase());
   },
 
   getNextReportNumber(prefix, date) {
