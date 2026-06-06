@@ -20,7 +20,7 @@ const App = {
   historyTab: 'reports',
 
   init() {
-    this.isPro = false; // Storage.isPro();
+    this.isPro = Storage.isPro();
     I18n.init();
     this.bindEvents();
     this.renderNav();

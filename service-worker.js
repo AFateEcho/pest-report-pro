@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pest-report-pro-v3';
+const CACHE_NAME = 'pest-report-pro-v4';
 const urlsToCache = [
   './',
   './index.html',

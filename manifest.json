@@ -2,7 +2,7 @@
   "name": "Pest Report Pro",
   "short_name": "PestReport",
   "description": "Professional PDF report generator for pest control businesses",
-  "start_url": "/",
+  "start_url": "./app.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1e40af",
