@@ -17,6 +17,7 @@ const App = {
   signaturePad: null,
   clientSignaturePad: null,
   isPro: false,
+  historyTab: 'reports',
 
   init() {
     this.isPro = false; // Storage.isPro();
@@ -52,6 +53,7 @@ const App = {
       el.addEventListener('click', (e) => {
         const view = el.dataset.view;
         if (view === 'quote' && !this.isPro) { this.showUnlock(); return; }
+        if (view === 'invoice' && !this.isPro) { this.showUnlock(); return; }
         if (view === 'chemical-log' && !this.isPro) { this.showUnlock(); return; }
         this.showView(view);
       });
@@ -118,6 +120,17 @@ const App = {
       this.addQuoteItem();
     });
 
+    // Invoice form
+    document.getElementById('invoice-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.generateInvoice();
+    });
+
+    // Add invoice item
+    document.getElementById('add-invoice-item')?.addEventListener('click', () => {
+      this.addInvoiceItem();
+    });
+
     // Chemical Log form
     document.getElementById('chemical-log-form')?.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -169,11 +182,13 @@ const App = {
 
     if (view === 'dashboard') this.renderDashboard();
     if (view === 'history') this.renderHistory();
+    if (view === 'customers') this.renderCustomers();
     if (view === 'service-report') {
       this.resetServiceForm();
       setTimeout(() => this.initClientSignaturePad(), 50);
     }
     if (view === 'quote') this.resetQuoteForm();
+    if (view === 'invoice') this.resetInvoiceForm();
     if (view === 'chemical-log') this.resetChemicalLogForm();
     if (view === 'settings') {
       setTimeout(() => this.initSignaturePad(), 50);
@@ -348,24 +363,31 @@ const App = {
     select.innerHTML = '';
     select.appendChild(firstOption);
 
-    const reports = Storage.getReports();
-    const clients = new Map();
-
-    reports.forEach(r => {
-      if (r.clientName && r.clientName.trim()) {
-        const key = r.clientName.trim().toLowerCase();
-        if (!clients.has(key)) {
-          clients.set(key, {
-            name: r.clientName.trim(),
-            phone: r.clientPhone || '',
-            address: r.clientAddress || ''
-          });
+    let sources = [];
+    const customers = Storage.getCustomers();
+    if (customers.length > 0) {
+      sources = customers.map(c => ({ name: c.name, phone: c.phone || '', address: c.address || '' }));
+    } else {
+      // Fallback: extract from reports for backward compatibility
+      const reports = Storage.getReports();
+      const clients = new Map();
+      reports.forEach(r => {
+        if (r.clientName && r.clientName.trim()) {
+          const key = r.clientName.trim().toLowerCase();
+          if (!clients.has(key)) {
+            clients.set(key, {
+              name: r.clientName.trim(),
+              phone: r.clientPhone || '',
+              address: r.clientAddress || ''
+            });
+          }
         }
-      }
-    });
+      });
+      sources = Array.from(clients.values());
+    }
 
     // Sort by name
-    const sorted = Array.from(clients.values()).sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = sources.sort((a, b) => a.name.localeCompare(b.name));
     sorted.forEach(c => {
       const option = document.createElement('option');
       option.value = JSON.stringify(c);
@@ -476,6 +498,14 @@ const App = {
     I18n.apply();
   },
 
+  resetInvoiceForm() {
+    document.getElementById('invoice-form')?.reset();
+    document.getElementById('invoice-date').valueAsDate = new Date();
+    document.getElementById('invoice-items').innerHTML = this.invoiceItemHTML(0);
+    this.calculateInvoiceTotals();
+    I18n.apply();
+  },
+
   quoteItemHTML(index) {
     return `
       <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 quote-item items-center">
@@ -490,6 +520,25 @@ const App = {
         </div>
         <div class="sm:col-span-2 flex justify-start items-center">
           <button type="button" onclick="App.removeQuoteItem(this)" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>
+        </div>
+      </div>
+    `;
+  },
+
+  invoiceItemHTML(index) {
+    return `
+      <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 invoice-item items-center">
+        <div class="sm:col-span-6">
+          <input type="text" name="ii-desc-${index}" data-i18n-placeholder="serviceDescription" placeholder="Service description" class="input-field">
+        </div>
+        <div class="sm:col-span-2 relative min-w-0">
+          <input type="text" inputmode="numeric" name="ii-qty-${index}" value="1" class="input-field ii-qty min-w-0 max-w-[100px]" oninput="App.calculateInvoiceTotals()">
+        </div>
+        <div class="sm:col-span-2 relative min-w-0">
+          <input type="text" inputmode="decimal" name="ii-price-${index}" value="0" class="input-field ii-price min-w-0 max-w-[100px]" oninput="App.calculateInvoiceTotals()">
+        </div>
+        <div class="sm:col-span-2 flex justify-start items-center">
+          <button type="button" onclick="App.removeInvoiceItem(this)" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>
         </div>
       </div>
     `;
@@ -522,6 +571,51 @@ const App = {
     div.innerHTML = this.quoteItemHTML(count);
     container.appendChild(div.firstElementChild);
     I18n.apply();
+  },
+
+  removeInvoiceItem(btn) {
+    const row = btn.closest('.invoice-item');
+    const container = document.getElementById('invoice-items');
+    if (container && container.querySelectorAll('.invoice-item').length <= 1) {
+      row.querySelectorAll('input').forEach(input => {
+        if (input.classList.contains('ii-qty') || input.classList.contains('ii-price')) {
+          input.value = input.classList.contains('ii-qty') ? '1' : '0';
+        } else {
+          input.value = '';
+        }
+      });
+      this.calculateInvoiceTotals();
+      return;
+    }
+    if (row) {
+      row.remove();
+      this.calculateInvoiceTotals();
+    }
+  },
+
+  addInvoiceItem() {
+    const container = document.getElementById('invoice-items');
+    const count = container.querySelectorAll('.invoice-item').length;
+    const div = document.createElement('div');
+    div.innerHTML = this.invoiceItemHTML(count);
+    container.appendChild(div.firstElementChild);
+    I18n.apply();
+  },
+
+  calculateInvoiceTotals() {
+    let subtotal = 0;
+    document.querySelectorAll('.invoice-item').forEach(row => {
+      const qty = parseFloat(row.querySelector('.ii-qty')?.value) || 0;
+      const price = parseFloat(row.querySelector('.ii-price')?.value) || 0;
+      subtotal += qty * price;
+    });
+    const taxRate = parseFloat(document.getElementById('invoice-tax-rate')?.value) || 0;
+    const tax = subtotal * (taxRate / 100);
+    const total = subtotal + tax;
+
+    document.getElementById('invoice-subtotal').textContent = subtotal.toFixed(2);
+    document.getElementById('invoice-tax').textContent = tax.toFixed(2);
+    document.getElementById('invoice-total').textContent = total.toFixed(2);
   },
 
   calculateQuoteTotals() {
@@ -572,6 +666,42 @@ const App = {
     PDF.generateQuote(data, this.isPro);
     Storage.saveQuote(data);
     this.showToast(I18n.t('toastQuoteGenerated'));
+  },
+
+  generateInvoice() {
+    if (!this.requireCompany()) return;
+    const items = [];
+    document.querySelectorAll('.invoice-item').forEach(row => {
+      const desc = row.querySelector('.input-field:not(.ii-qty):not(.ii-price)')?.value;
+      if (desc) {
+        items.push({
+          description: desc,
+          quantity: row.querySelector('.ii-qty')?.value || '1',
+          price: row.querySelector('.ii-price')?.value || '0'
+        });
+      }
+    });
+
+    const subtotal = parseFloat(document.getElementById('invoice-subtotal').textContent) || 0;
+    const tax = parseFloat(document.getElementById('invoice-tax').textContent) || 0;
+
+    const data = {
+      clientName: document.getElementById('i-client-name').value,
+      clientAddress: document.getElementById('i-client-address').value,
+      clientPhone: document.getElementById('i-client-phone').value,
+      date: document.getElementById('invoice-date').value,
+      dueDate: document.getElementById('invoice-due').value,
+      paymentMethod: document.getElementById('i-payment-method').value,
+      paymentStatus: document.getElementById('i-payment-status').value,
+      items,
+      subtotal,
+      tax,
+      terms: document.getElementById('invoice-terms').value
+    };
+
+    PDF.generateInvoice(data, this.isPro);
+    Storage.saveInvoice(data);
+    this.showToast(I18n.t('toastInvoiceGenerated'));
   },
 
   // ========== CHEMICAL LOG ==========
@@ -648,8 +778,13 @@ const App = {
   renderDashboard() {
     const reports = Storage.getReports();
     const quotes = Storage.getQuotes();
+    const invoices = Storage.getInvoices();
+    const customers = Storage.getCustomers();
     document.getElementById('dash-report-count').textContent = reports.length;
     document.getElementById('dash-quote-count').textContent = quotes.length;
+    document.getElementById('dash-invoice-count').textContent = invoices.length;
+    const customerCountEl = document.getElementById('dash-customer-count');
+    if (customerCountEl) customerCountEl.textContent = customers.length;
 
     // 只显示最近15天的报告
     const today = new Date();
@@ -675,13 +810,27 @@ const App = {
   },
 
   // ========== HISTORY ==========
+  switchHistoryTab(tab) {
+    this.historyTab = tab;
+    document.querySelectorAll('.history-tab').forEach(el => {
+      el.classList.toggle('active', el.id === `tab-${tab}`);
+    });
+    const searchInput = document.getElementById('history-search');
+    if (searchInput) searchInput.value = '';
+    this.renderHistory();
+  },
+
   renderHistory() {
-    const reports = Storage.getReports();
-    const list = document.getElementById('history-list');
     const searchInput = document.getElementById('history-search');
     if (searchInput) searchInput.value = '';
 
-    if (reports.length === 0) {
+    let items = [];
+    if (this.historyTab === 'reports') items = Storage.getReports();
+    else if (this.historyTab === 'quotes') items = Storage.getQuotes();
+    else if (this.historyTab === 'invoices') items = Storage.getInvoices();
+
+    const list = document.getElementById('history-list');
+    if (items.length === 0) {
       list.innerHTML = `
         <div class="card text-center py-10">
           <i class="fas fa-folder-open text-gray-300 text-4xl mb-3"></i>
@@ -691,26 +840,45 @@ const App = {
       return;
     }
 
-    this._renderHistoryList(reports);
+    this._renderHistoryList(items);
   },
 
-  _renderHistoryList(reports) {
+  _renderHistoryList(items) {
     const list = document.getElementById('history-list');
-    const sorted = [...reports].sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+    const sorted = [...items].sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
 
-    list.innerHTML = sorted.map((r, idx) => `
-      <div class="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-history-index="${idx}" data-report-id="${r.id || ''}">
+    const getBadge = (item) => {
+      if (this.historyTab === 'reports') return I18n.t('reportBadge');
+      if (this.historyTab === 'quotes') return I18n.t('quotes');
+      if (this.historyTab === 'invoices') return item.paymentStatus === 'paid' ? I18n.t('paid') : I18n.t('unpaid');
+      return '';
+    };
+
+    const getBadgeClass = (item) => {
+      if (this.historyTab === 'invoices' && item.paymentStatus === 'paid') return 'bg-green-50 text-green-700';
+      if (this.historyTab === 'invoices') return 'bg-red-50 text-red-700';
+      return 'bg-blue-50 text-blue-700';
+    };
+
+    const getSubtitle = (item) => {
+      if (this.historyTab === 'reports') return `${item.date || '—'} • ${PDF.translateServiceType(item.serviceType)}`;
+      return item.date || '—';
+    };
+
+    list.innerHTML = sorted.map((item, idx) => `
+      <div class="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:border-blue-300 transition-colors duration-200" onclick="App.showHistoryDetail('${item.id || ''}')" data-history-index="${idx}" data-item-id="${item.id || ''}">
         <div class="min-w-0">
-          <p class="text-sm font-bold text-gray-900 truncate">${r.clientName || '—'}</p>
-          <p class="text-xs text-gray-500 mt-0.5">${r.date || '—'} • ${PDF.translateServiceType(r.serviceType)}</p>
-          ${r.clientAddress ? `<p class="text-xs text-gray-400 mt-0.5 truncate">${r.clientAddress}</p>` : ''}
+          <p class="text-sm font-bold text-gray-900 truncate">${item.clientName || '—'}</p>
+          <p class="text-xs text-gray-500 mt-0.5">${getSubtitle(item)}</p>
+          ${item.clientAddress ? `<p class="text-xs text-gray-400 mt-0.5 truncate">${item.clientAddress}</p>` : ''}
         </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <button onclick="App.downloadReport('${r.id || ''}')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+        <div class="flex items-center gap-2 shrink-0" onclick="event.stopPropagation()">
+          <span class="text-xs ${getBadgeClass(item)} px-2 py-1 rounded font-medium">${getBadge(item)}</span>
+          <button onclick="App.downloadHistoryItem('${item.id || ''}')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
             <i class="fas fa-download text-xs"></i>
             <span data-i18n="historyDownload">${I18n.t('historyDownload')}</span>
           </button>
-          <button onclick="App.deleteReport('${r.id || ''}')" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium px-3 py-1.5 rounded-lg transition">
+          <button onclick="App.deleteHistoryItem('${item.id || ''}')" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium px-3 py-1.5 rounded-lg transition">
             <i class="fas fa-trash-alt text-xs"></i>
           </button>
         </div>
@@ -720,15 +888,19 @@ const App = {
 
   filterHistory() {
     const query = document.getElementById('history-search')?.value.trim().toLowerCase() || '';
-    const reports = Storage.getReports();
+    let items = [];
+    if (this.historyTab === 'reports') items = Storage.getReports();
+    else if (this.historyTab === 'quotes') items = Storage.getQuotes();
+    else if (this.historyTab === 'invoices') items = Storage.getInvoices();
+
     if (!query) {
-      this._renderHistoryList(reports);
+      this._renderHistoryList(items);
       return;
     }
-    const filtered = reports.filter(r =>
-      (r.clientName || '').toLowerCase().includes(query) ||
-      (r.clientAddress || '').toLowerCase().includes(query) ||
-      (r.date || '').includes(query)
+    const filtered = items.filter(item =>
+      (item.clientName || '').toLowerCase().includes(query) ||
+      (item.clientAddress || '').toLowerCase().includes(query) ||
+      (item.date || '').includes(query)
     );
     this._renderHistoryList(filtered);
   },
@@ -749,6 +921,165 @@ const App = {
     Storage.deleteReport(id);
     this.renderHistory();
     this.showToast(I18n.t('toastReportDeleted'));
+  },
+
+  downloadHistoryItem(id) {
+    if (this.historyTab === 'reports') {
+      const reports = Storage.getReports();
+      const report = reports.find(r => r.id === id);
+      if (report) {
+        PDF.generateServiceReport(report, this.isPro);
+        this.showToast(I18n.t('toastServiceGenerated'));
+      }
+    } else if (this.historyTab === 'quotes') {
+      const quotes = Storage.getQuotes();
+      const quote = quotes.find(q => q.id === id);
+      if (quote) {
+        PDF.generateQuote(quote, this.isPro);
+        this.showToast(I18n.t('toastQuoteGenerated'));
+      }
+    } else if (this.historyTab === 'invoices') {
+      const invoices = Storage.getInvoices();
+      const invoice = invoices.find(i => i.id === id);
+      if (invoice) {
+        PDF.generateInvoice(invoice, this.isPro);
+        this.showToast(I18n.t('toastInvoiceGenerated'));
+      }
+    }
+  },
+
+  deleteHistoryItem(id) {
+    if (!confirm(I18n.t('historyDeleteConfirm'))) return;
+    if (this.historyTab === 'reports') {
+      Storage.deleteReport(id);
+    } else if (this.historyTab === 'quotes') {
+      Storage.deleteQuote(id);
+    } else if (this.historyTab === 'invoices') {
+      Storage.deleteInvoice(id);
+    }
+    this.renderHistory();
+    this.showToast(I18n.t('toastReportDeleted'));
+    this.renderDashboard();
+  },
+
+  showHistoryDetail(id) {
+    if (!id) return;
+    this._currentDetailId = id;
+    this._currentDetailOriginal = null;
+
+    let item = null;
+    if (this.historyTab === 'reports') {
+      const reports = Storage.getReports();
+      item = reports.find(r => r.id === id);
+    } else if (this.historyTab === 'quotes') {
+      const quotes = Storage.getQuotes();
+      item = quotes.find(q => q.id === id);
+    } else if (this.historyTab === 'invoices') {
+      const invoices = Storage.getInvoices();
+      item = invoices.find(i => i.id === id);
+    }
+
+    if (!item) {
+      this.showToast(I18n.t('toastInvalidKey'), 'error');
+      return;
+    }
+
+    this._currentDetailOriginal = JSON.stringify(item);
+    const modal = document.getElementById('history-detail-modal');
+    const badge = document.getElementById('detail-type-badge');
+
+    if (this.historyTab === 'reports') {
+      badge.textContent = I18n.t('serviceReports');
+      badge.className = 'text-xs px-2.5 py-1 rounded-full font-semibold bg-blue-50 text-blue-700';
+    } else if (this.historyTab === 'quotes') {
+      badge.textContent = I18n.t('quotes');
+      badge.className = 'text-xs px-2.5 py-1 rounded-full font-semibold bg-green-50 text-green-700';
+    } else {
+      badge.textContent = I18n.t('invoices');
+      badge.className = 'text-xs px-2.5 py-1 rounded-full font-semibold bg-purple-50 text-purple-700';
+    }
+
+    this._renderDetailBody(item);
+    modal.classList.remove('hidden');
+    void modal.offsetWidth;
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  },
+
+  _renderDetailBody(item) {
+    const body = document.getElementById('detail-modal-body');
+    const tab = this.historyTab;
+
+    const field = (label, value, key, type = 'text') => {
+      const val = this._escapeHtml(value || '');
+      if (type === 'textarea') {
+        return `<div class="detail-field"><div class="label">${this._escapeHtml(label)}</div><textarea id="detail-${key}" class="input-field" rows="3">${val}</textarea></div>`;
+      }
+      if (type === 'select') {
+        return `<div class="detail-field"><div class="label">${this._escapeHtml(label)}</div><select id="detail-${key}" class="input-field">${value}</select></div>`;
+      }
+      return `<div class="detail-field"><div class="label">${this._escapeHtml(label)}</div><input type="${type}" id="detail-${key}" class="input-field" value="${val}"></div>`;
+    };
+
+    const readonlyRow = (label, value) => {
+      return `<div class="detail-readonly-row"><span class="label">${this._escapeHtml(label)}</span><span class="value">${this._escapeHtml(value || '—')}</span></div>`;
+    };
+
+    let html = '';
+
+    html += `<div class="detail-section-title" data-i18n="detailClientInfo">${I18n.t('detailClientInfo')}</div>`;
+    html += field(I18n.t('clientName'), item.clientName, 'clientName');
+    html += field(I18n.t('phone'), item.clientPhone || item.phone || '', 'clientPhone');
+    html += field(I18n.t('serviceAddress'), item.clientAddress || item.address || '', 'clientAddress');
+
+    if (tab === 'reports') {
+      html += `<div class="detail-section-title mt-4" data-i18n="detailServiceDetails">${I18n.t('detailServiceDetails')}</div>`;
+      html += readonlyRow(I18n.t('serviceDate'), item.date);
+      html += readonlyRow(I18n.t('serviceType'), item.serviceType);
+      html += readonlyRow(I18n.t('technician'), item.technician);
+
+      html += `<div class="detail-section-title mt-4" data-i18n="detailNotes">${I18n.t('detailNotes')}</div>`;
+      html += field(I18n.t('notes') || 'Notes', item.notes, 'notes', 'textarea');
+      html += field(I18n.t('recommendations') || 'Recommendations', item.recommendations, 'recommendations', 'textarea');
+    }
+
+    if (tab === 'quotes') {
+      html += `<div class="detail-section-title mt-4" data-i18n="detailQuoteDetails">${I18n.t('detailQuoteDetails')}</div>`;
+      html += field(I18n.t('quoteDate') || 'Quote Date', item.date, 'date', 'date');
+      html += readonlyRow(I18n.t('validUntil') || 'Valid Until', item.validUntil);
+      html += readonlyRow(I18n.t('subtotal') || 'Subtotal', item.subtotal);
+      html += readonlyRow(I18n.t('tax') || 'Tax', item.tax);
+      html += readonlyRow(I18n.t('total') || 'Total', item.total);
+
+      html += `<div class="detail-section-title mt-4" data-i18n="detailNotes">${I18n.t('detailNotes')}</div>`;
+      html += field(I18n.t('notes') || 'Notes', item.notes, 'notes', 'textarea');
+    }
+
+    if (tab === 'invoices') {
+      html += `<div class="detail-section-title mt-4" data-i18n="detailInvoiceDetails">${I18n.t('detailInvoiceDetails')}</div>`;
+      html += field(I18n.t('invoiceDate') || 'Invoice Date', item.invoiceDate || item.date, 'invoiceDate', 'date');
+      html += field(I18n.t('dueDate') || 'Due Date', item.dueDate, 'dueDate', 'date');
+
+      const paidSelected = item.paymentStatus === 'paid' ? 'selected' : '';
+      const unpaidSelected = item.paymentStatus !== 'paid' ? 'selected' : '';
+      const selectOptions = `<option value="paid" ${paidSelected}>${I18n.t('paid')}</option><option value="unpaid" ${unpaidSelected}>${I18n.t('unpaid')}</option>`;
+      html += field(I18n.t('paymentStatus') || 'Payment Status', selectOptions, 'paymentStatus', 'select');
+
+      html += readonlyRow(I18n.t('subtotal') || 'Subtotal', item.subtotal);
+      html += readonlyRow(I18n.t('tax') || 'Tax', item.tax);
+      html += readonlyRow(I18n.t('total') || 'Total', item.total);
+
+      html += `<div class="detail-section-title mt-4" data-i18n="detailNotes">${I18n.t('detailNotes')}</div>`;
+      html += field(I18n.t('notes') || 'Notes', item.notes, 'notes', 'textarea');
+    }
+
+    body.innerHTML = html;
+
+    const phoneInput = document.getElementById('detail-clientPhone');
+    if (phoneInput) {
+      this.formatPhoneInput({ target: phoneInput });
+      phoneInput.addEventListener('input', (e) => this.formatPhoneInput(e));
+    }
   },
 
   // ========== PWA INSTALL ==========
@@ -857,6 +1188,227 @@ const App = {
     return valid;
   },
 
+  // ========== CUSTOMERS ==========
+  renderCustomers() {
+    const customers = Storage.getCustomers();
+    const search = (document.getElementById('customer-search')?.value || '').trim().toLowerCase();
+    const list = document.getElementById('customers-list');
+
+    const filtered = search
+      ? customers.filter(c =>
+          (c.name || '').toLowerCase().includes(search) ||
+          (c.address || '').toLowerCase().includes(search) ||
+          (c.phone || '').toLowerCase().includes(search)
+        )
+      : customers;
+
+    if (filtered.length === 0) {
+      list.innerHTML = `
+        <div class="text-center py-12">
+          <i class="fas fa-users text-gray-200 text-5xl mb-4"></i>
+          <p class="text-gray-400 text-sm" data-i18n="noCustomersYet">${I18n.t('noCustomersYet')}</p>
+        </div>
+      `;
+      return;
+    }
+
+    const getRelatedCount = (customer) => {
+      const name = (customer.name || '').trim().toLowerCase();
+      const reports = Storage.getReports().filter(r => (r.clientName || '').trim().toLowerCase() === name).length;
+      const quotes = Storage.getQuotes().filter(q => (q.clientName || '').trim().toLowerCase() === name).length;
+      const invoices = Storage.getInvoices().filter(i => (i.clientName || '').trim().toLowerCase() === name).length;
+      return { reports, quotes, invoices };
+    };
+
+    list.innerHTML = filtered.map(c => {
+      const counts = getRelatedCount(c);
+      return `
+        <div class="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer hover:border-blue-300 transition-colors duration-200" onclick="App.showCustomerDetail('${c.id}')">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-gray-800 truncate">${this._escapeHtml(c.name)}</p>
+            <div class="flex flex-wrap gap-x-3 text-xs text-gray-500 mt-1">
+              ${c.phone ? `<span><i class="fas fa-phone text-gray-300 mr-1"></i>${this._escapeHtml(c.phone)}</span>` : ''}
+              ${c.address ? `<span><i class="fas fa-map-marker-alt text-gray-300 mr-1"></i>${this._escapeHtml(c.address)}</span>` : ''}
+            </div>
+            <div class="flex gap-2 mt-2">
+              ${counts.reports > 0 ? `<span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">${counts.reports} ${I18n.t('customerReports')}</span>` : ''}
+              ${counts.quotes > 0 ? `<span class="text-[10px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded font-medium">${counts.quotes} ${I18n.t('customerQuotes')}</span>` : ''}
+              ${counts.invoices > 0 ? `<span class="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded font-medium">${counts.invoices} ${I18n.t('customerInvoices')}</span>` : ''}
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <button type="button" class="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-50 transition" onclick="event.stopPropagation(); App.openCustomerModal('${c.id}')">
+              <i class="fas fa-pen"></i>
+            </button>
+            <button type="button" class="text-sm text-red-500 hover:text-red-700 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50 transition" onclick="event.stopPropagation(); App.deleteCustomer('${c.id}')">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  },
+
+  filterCustomers() {
+    this.renderCustomers();
+  },
+
+  openCustomerModal(id) {
+    const modal = document.getElementById('customer-modal');
+    const title = document.getElementById('customer-modal-title');
+    const idInput = document.getElementById('customer-id');
+    const nameInput = document.getElementById('customer-name');
+    const phoneInput = document.getElementById('customer-phone');
+    const addressInput = document.getElementById('customer-address');
+    const emailInput = document.getElementById('customer-email');
+    const notesInput = document.getElementById('customer-notes');
+
+    if (id) {
+      const customer = Storage.getCustomers().find(c => c.id === id);
+      if (!customer) return;
+      title.textContent = I18n.t('editCustomer');
+      title.dataset.i18n = 'editCustomer';
+      idInput.value = customer.id;
+      nameInput.value = customer.name || '';
+      phoneInput.value = customer.phone || '';
+      addressInput.value = customer.address || '';
+      emailInput.value = customer.email || '';
+      notesInput.value = customer.notes || '';
+    } else {
+      title.textContent = I18n.t('addCustomer');
+      title.dataset.i18n = 'addCustomer';
+      idInput.value = '';
+      nameInput.value = '';
+      phoneInput.value = '';
+      addressInput.value = '';
+      emailInput.value = '';
+      notesInput.value = '';
+    }
+
+    modal.classList.remove('hidden');
+    void modal.offsetWidth;
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    nameInput.focus();
+  },
+
+  closeCustomerModal() {
+    const modal = document.getElementById('customer-modal');
+    modal.classList.remove('show');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }, 200);
+  },
+
+  saveCustomerForm() {
+    const id = document.getElementById('customer-id').value;
+    const name = document.getElementById('customer-name').value.trim();
+    const phone = document.getElementById('customer-phone').value.trim();
+    const address = document.getElementById('customer-address').value.trim();
+    const email = document.getElementById('customer-email').value.trim();
+    const notes = document.getElementById('customer-notes').value.trim();
+
+    if (!name) {
+      this.showToast(I18n.t('clientName') + ' is required', 'error');
+      return;
+    }
+
+    const customer = { name, phone, address, email, notes };
+    if (id) customer.id = id;
+
+    Storage.saveCustomer(customer);
+    this.showToast(id ? I18n.t('customerUpdated') : I18n.t('customerCreated'));
+    this.renderCustomers();
+    this.renderDashboard();
+    this.closeCustomerModal();
+  },
+
+  deleteCustomer(id) {
+    const customer = Storage.getCustomers().find(c => c.id === id);
+    if (!customer) return;
+    if (!confirm(I18n.t('deleteCustomerConfirm'))) return;
+    Storage.deleteCustomer(id);
+    this.showToast(I18n.t('customerDeleted'));
+    this.renderCustomers();
+    this.renderDashboard();
+  },
+
+  showCustomerDetail(id) {
+    const customer = Storage.getCustomers().find(c => c.id === id);
+    if (!customer) return;
+
+    const name = (customer.name || '').trim().toLowerCase();
+    const reports = Storage.getReports().filter(r => (r.clientName || '').trim().toLowerCase() === name);
+    const quotes = Storage.getQuotes().filter(q => (q.clientName || '').trim().toLowerCase() === name);
+    const invoices = Storage.getInvoices().filter(i => (i.clientName || '').trim().toLowerCase() === name);
+
+    const body = document.getElementById('customer-detail-body');
+    let html = '';
+
+    html += `<div class="space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="detail-field"><div class="label">${I18n.t('clientName')}</div><div class="text-sm text-gray-800 font-medium">${this._escapeHtml(customer.name)}</div></div>
+        ${customer.phone ? `<div class="detail-field"><div class="label">${I18n.t('phone')}</div><div class="text-sm text-gray-800">${this._escapeHtml(customer.phone)}</div></div>` : ''}
+        ${customer.address ? `<div class="detail-field sm:col-span-2"><div class="label">${I18n.t('serviceAddress')}</div><div class="text-sm text-gray-800">${this._escapeHtml(customer.address)}</div></div>` : ''}
+        ${customer.email ? `<div class="detail-field"><div class="label">${I18n.t('customerEmail')}</div><div class="text-sm text-gray-800">${this._escapeHtml(customer.email)}</div></div>` : ''}
+      </div>
+      ${customer.notes ? `<div class="detail-field"><div class="label">${I18n.t('customerNotes')}</div><div class="text-sm text-gray-600">${this._escapeHtml(customer.notes)}</div></div>` : ''}
+    </div>`;
+
+    const renderList = (items, typeLabel, icon, colorClass) => {
+      if (items.length === 0) return '';
+      return `
+        <div class="mt-5">
+          <h4 class="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+            <i class="fas ${icon} ${colorClass}"></i> ${typeLabel} (${items.length})
+          </h4>
+          <div class="space-y-2">
+            ${items.map(item => `
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p class="text-sm font-medium text-gray-800">${this._escapeHtml(item.date || item.invoiceDate || item.quoteDate || '-')}</p>
+                  ${item.serviceType ? `<p class="text-xs text-gray-500">${this._escapeHtml(item.serviceType)}</p>` : ''}
+                </div>
+                ${item.total ? `<span class="text-sm font-semibold text-gray-800">$${this._escapeHtml(item.total)}</span>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    };
+
+    html += renderList(reports, I18n.t('customerReports'), 'fa-file-medical', 'text-blue-600');
+    html += renderList(quotes, I18n.t('customerQuotes'), 'fa-file-invoice-dollar', 'text-green-600');
+    html += renderList(invoices, I18n.t('customerInvoices'), 'fa-file-invoice', 'text-purple-600');
+
+    body.innerHTML = html;
+    this._currentCustomerDetailId = id;
+
+    const modal = document.getElementById('customer-detail-modal');
+    modal.classList.remove('hidden');
+    void modal.offsetWidth;
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  },
+
+  closeCustomerDetail() {
+    const modal = document.getElementById('customer-detail-modal');
+    modal.classList.remove('show');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+      this._currentCustomerDetailId = null;
+    }, 200);
+  },
+
+  editCustomerFromDetail() {
+    const id = this._currentCustomerDetailId;
+    if (!id) return;
+    this.closeCustomerDetail();
+    setTimeout(() => this.openCustomerModal(id), 200);
+  },
+
   // ========== UTILS ==========
   showToast(message, type = 'success') {
     const colors = {
@@ -870,6 +1422,117 @@ const App = {
     document.body.appendChild(toast);
     setTimeout(() => toast.classList.add('opacity-0'), 2500);
     setTimeout(() => toast.remove(), 2800);
+  },
+
+  saveHistoryDetail() {
+    const id = this._currentDetailId;
+    if (!id) return;
+
+    const tab = this.historyTab;
+    const updates = {};
+
+    const getVal = (key) => {
+      const el = document.getElementById(`detail-${key}`);
+      return el ? el.value.trim() : '';
+    };
+
+    updates.clientName = getVal('clientName');
+    updates.clientPhone = getVal('clientPhone');
+    updates.clientAddress = getVal('clientAddress');
+
+    if (tab === 'reports') {
+      updates.notes = getVal('notes');
+      updates.recommendations = getVal('recommendations');
+    } else if (tab === 'quotes') {
+      updates.date = getVal('date');
+      updates.notes = getVal('notes');
+    } else if (tab === 'invoices') {
+      updates.invoiceDate = getVal('invoiceDate');
+      updates.dueDate = getVal('dueDate');
+      updates.paymentStatus = getVal('paymentStatus');
+      updates.notes = getVal('notes');
+    }
+
+    const original = JSON.parse(this._currentDetailOriginal || '{}');
+    let changed = false;
+    for (const key of Object.keys(updates)) {
+      if ((original[key] || '') !== updates[key]) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) {
+      this.closeHistoryDetail();
+      return;
+    }
+
+    let success = false;
+    if (tab === 'reports') {
+      success = !!Storage.updateReport(id, updates);
+    } else if (tab === 'quotes') {
+      success = !!Storage.updateQuote(id, updates);
+    } else if (tab === 'invoices') {
+      success = !!Storage.updateInvoice(id, updates);
+    }
+
+    if (success) {
+      this.showToast(I18n.t('toastChangesSaved'));
+      this.renderHistory();
+      this.renderDashboard();
+      this.closeHistoryDetail();
+    } else {
+      this.showToast(I18n.t('toastInvalidKey'), 'error');
+    }
+  },
+
+  closeHistoryDetail() {
+    if (this.isDetailDirty()) {
+      if (!confirm(I18n.t('discardChanges'))) return;
+    }
+    const modal = document.getElementById('history-detail-modal');
+    modal.classList.remove('show');
+    setTimeout(() => {
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+      this._currentDetailId = null;
+      this._currentDetailOriginal = null;
+    }, 200);
+  },
+
+  isDetailDirty() {
+    if (!this._currentDetailId || !this._currentDetailOriginal) return false;
+    const tab = this.historyTab;
+    const updates = {};
+    const getVal = (key) => {
+      const el = document.getElementById(`detail-${key}`);
+      return el ? el.value.trim() : '';
+    };
+    updates.clientName = getVal('clientName');
+    updates.clientPhone = getVal('clientPhone');
+    updates.clientAddress = getVal('clientAddress');
+    if (tab === 'reports') {
+      updates.notes = getVal('notes');
+      updates.recommendations = getVal('recommendations');
+    } else if (tab === 'quotes') {
+      updates.date = getVal('date');
+      updates.notes = getVal('notes');
+    } else if (tab === 'invoices') {
+      updates.invoiceDate = getVal('invoiceDate');
+      updates.dueDate = getVal('dueDate');
+      updates.paymentStatus = getVal('paymentStatus');
+      updates.notes = getVal('notes');
+    }
+    const original = JSON.parse(this._currentDetailOriginal);
+    for (const key of Object.keys(updates)) {
+      if ((original[key] || '') !== updates[key]) return true;
+    }
+    return false;
+  },
+
+  _escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 };
 

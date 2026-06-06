@@ -4,7 +4,9 @@ const Storage = {
     pro: 'prp_pro',
     reports: 'prp_reports',
     quotes: 'prp_quotes',
+    invoices: 'prp_invoices',
     chemicals: 'prp_chemicals',
+    customers: 'prp_customers',
     lang: 'prp_lang',
     usedKeys: 'prp_used_keys'
   },
@@ -75,6 +77,98 @@ const Storage = {
   deleteQuote(id) {
     const quotes = this.getQuotes().filter(q => q.id !== id);
     localStorage.setItem(this.key.quotes, JSON.stringify(quotes));
+  },
+
+  getInvoices() {
+    try {
+      return JSON.parse(localStorage.getItem(this.key.invoices)) || [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveInvoice(invoice) {
+    const invoices = this.getInvoices();
+    invoice.id = invoice.id || Date.now().toString();
+    invoice.createdAt = invoice.createdAt || new Date().toISOString();
+    const idx = invoices.findIndex(i => i.id === invoice.id);
+    if (idx >= 0) invoices[idx] = invoice;
+    else invoices.unshift(invoice);
+    localStorage.setItem(this.key.invoices, JSON.stringify(invoices));
+    return invoice;
+  },
+
+  deleteInvoice(id) {
+    const invoices = this.getInvoices().filter(i => i.id !== id);
+    localStorage.setItem(this.key.invoices, JSON.stringify(invoices));
+  },
+
+  updateReport(id, updates) {
+    const reports = this.getReports();
+    const idx = reports.findIndex(r => r.id === id);
+    if (idx >= 0) {
+      reports[idx] = { ...reports[idx], ...updates, id };
+      localStorage.setItem(this.key.reports, JSON.stringify(reports));
+      return reports[idx];
+    }
+    return null;
+  },
+
+  updateQuote(id, updates) {
+    const quotes = this.getQuotes();
+    const idx = quotes.findIndex(q => q.id === id);
+    if (idx >= 0) {
+      quotes[idx] = { ...quotes[idx], ...updates, id };
+      localStorage.setItem(this.key.quotes, JSON.stringify(quotes));
+      return quotes[idx];
+    }
+    return null;
+  },
+
+  updateInvoice(id, updates) {
+    const invoices = this.getInvoices();
+    const idx = invoices.findIndex(i => i.id === id);
+    if (idx >= 0) {
+      invoices[idx] = { ...invoices[idx], ...updates, id };
+      localStorage.setItem(this.key.invoices, JSON.stringify(invoices));
+      return invoices[idx];
+    }
+    return null;
+  },
+
+  getCustomers() {
+    try {
+      return JSON.parse(localStorage.getItem(this.key.customers)) || [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveCustomer(customer) {
+    const customers = this.getCustomers();
+    customer.id = customer.id || Date.now().toString();
+    customer.createdAt = customer.createdAt || new Date().toISOString();
+    const idx = customers.findIndex(c => c.id === customer.id);
+    if (idx >= 0) customers[idx] = customer;
+    else customers.unshift(customer);
+    localStorage.setItem(this.key.customers, JSON.stringify(customers));
+    return customer;
+  },
+
+  deleteCustomer(id) {
+    const customers = this.getCustomers().filter(c => c.id !== id);
+    localStorage.setItem(this.key.customers, JSON.stringify(customers));
+  },
+
+  updateCustomer(id, updates) {
+    const customers = this.getCustomers();
+    const idx = customers.findIndex(c => c.id === id);
+    if (idx >= 0) {
+      customers[idx] = { ...customers[idx], ...updates, id };
+      localStorage.setItem(this.key.customers, JSON.stringify(customers));
+      return customers[idx];
+    }
+    return null;
   },
 
   getChemicals() {

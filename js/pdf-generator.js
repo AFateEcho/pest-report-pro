@@ -330,6 +330,103 @@ const PDF = {
     });
   },
 
+  // ========== INVOICE ==========
+  generateInvoice(data, isPro = false) {
+    const company = Storage.getCompany();
+    const invSeq = Storage.getNextReportNumber('INV', data.date.replace(/-/g, ''));
+    const reportNum = `${I18n.t('pdfInvoiceNum')}: INV-${data.date.replace(/-/g, '')}-${invSeq}`;
+
+    const itemsRows = (data.items || []).map(item => {
+      const qty = parseFloat(item.quantity) || 1;
+      const price = parseFloat(item.price) || 0;
+      const total = qty * price;
+      return `
+        <tr>
+          <td style="border:1px solid #d1d5db;padding:6px 8px;font-size:11px;">${this.escapeHtml(item.description) || 'N/A'}</td>
+          <td style="border:1px solid #d1d5db;padding:6px 8px;font-size:11px;text-align:center;">${qty}</td>
+          <td style="border:1px solid #d1d5db;padding:6px 8px;font-size:11px;text-align:right;">$${price.toFixed(2)}</td>
+          <td style="border:1px solid #d1d5db;padding:6px 8px;font-size:11px;text-align:right;">$${total.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const subtotal = parseFloat(data.subtotal) || 0;
+    const tax = parseFloat(data.tax) || 0;
+    const total = subtotal + tax;
+    const statusLabel = data.paymentStatus === 'paid' ? I18n.t('pdfPaid') : I18n.t('pdfUnpaid');
+    const statusColor = data.paymentStatus === 'paid' ? '#16a34a' : '#dc2626';
+
+    const html = `
+      <div style="padding:0 0 20px 0;">
+        ${this.headerHTML(company, I18n.t('pdfInvoice'), reportNum + `<br>${I18n.t('pdfDueDate')}: ${data.dueDate || 'N/A'}`)}
+
+        <div style="margin-bottom:20px;padding:0 30px;">
+          <div style="background:#f3f4f6;padding:15px;border-radius:8px;">
+            <div style="font-weight:bold;color:#1e40af;font-size:11px;margin-bottom:6px;text-transform:uppercase;">${I18n.t('pdfTo')}</div>
+            <div style="font-size:11px;line-height:1.8;">
+              <div><strong>${I18n.t('pdfName')}:</strong> ${this.escapeHtml(data.clientName) || 'N/A'}</div>
+              <div><strong>${I18n.t('pdfAddress')}:</strong> ${this.escapeHtml(data.clientAddress) || 'N/A'}</div>
+              <div><strong>${I18n.t('pdfPhone')}:</strong> ${this.escapeHtml(data.clientPhone) || 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:15px;padding:0 30px;">
+          <div style="display:flex;gap:20px;margin-bottom:15px;">
+            <div style="flex:1;background:#f3f4f6;padding:12px 15px;border-radius:8px;">
+              <div style="font-size:10px;color:#6b7280;margin-bottom:2px;">${I18n.t('pdfPaymentMethod')}</div>
+              <div style="font-size:12px;font-weight:500;">${this.escapeHtml(data.paymentMethod) || 'N/A'}</div>
+            </div>
+            <div style="flex:1;background:#f3f4f6;padding:12px 15px;border-radius:8px;text-align:center;">
+              <div style="font-size:10px;color:#6b7280;margin-bottom:2px;">${I18n.t('pdfPaymentStatus')}</div>
+              <div style="font-size:14px;font-weight:bold;color:${statusColor};">${statusLabel}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:15px;padding:0 30px;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:#1e40af;color:#fff;">
+                <th style="border:1px solid #1e40af;padding:6px 8px;font-size:10px;text-align:left;">${I18n.t('pdfDescription')}</th>
+                <th style="border:1px solid #1e40af;padding:6px 8px;font-size:10px;text-align:center;width:60px;">${I18n.t('pdfQty')}</th>
+                <th style="border:1px solid #1e40af;padding:6px 8px;font-size:10px;text-align:right;width:80px;">${I18n.t('pdfUnitPrice')}</th>
+                <th style="border:1px solid #1e40af;padding:6px 8px;font-size:10px;text-align:right;width:80px;">${I18n.t('pdfAmount')}</th>
+              </tr>
+            </thead>
+            <tbody>${itemsRows}</tbody>
+          </table>
+        </div>
+
+        <div style="margin-bottom:20px;padding:0 30px;">
+          <div style="width:220px;margin-left:auto;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;">
+              <span style="color:#6b7280;">${I18n.t('subtotal')}:</span>
+              <span style="font-weight:500;">$${subtotal.toFixed(2)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;">
+              <span style="color:#6b7280;">${I18n.t('tax')}:</span>
+              <span style="font-weight:500;">$${tax.toFixed(2)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:bold;color:#1e40af;padding:6px 0;margin-top:4px;border-top:1px solid #e5e7eb;">
+              <span>${I18n.t('pdfTotal')}:</span>
+              <span>$${total.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        ${data.terms ? this.sectionHTML(I18n.t('pdfTerms'), data.terms) : ''}
+
+        ${this.footerHTML(company)}
+      </div>
+    `;
+
+    this.renderToPDF(html, `Invoice-${data.clientName || 'Client'}-${data.date}.pdf`, isPro).catch(err => {
+      console.error('PDF generation failed:', err);
+      alert('PDF generation failed. Please try again.');
+    });
+  },
+
   // ========== CHEMICAL LOG ==========
   generateChemicalLog(data, isPro = false) {
     const company = Storage.getCompany();
